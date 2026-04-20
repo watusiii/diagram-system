@@ -5,6 +5,7 @@ class DiagramRenderer {
         this.app = app;
         this.container = new PIXI.Container();
         app.stage.addChild(this.container);
+        this.containerEdges = []; // Track all container edges for collision detection
     }
 
     indexToY(index) {
@@ -47,6 +48,81 @@ class DiagramRenderer {
             return { color: (r << 16) + (g << 8) + b, alpha: a };
         }
         return { color: 0xffffff, alpha: 1 };
+    }
+
+    // Calculate safe text size and corner radius
+    getSafeTextAndRadius(textLabel, containerHeight, maxRadius, baseFontSize = 11) {
+        const minClearance = 20; // Min space between text edge and container edges
+        const minRadius = maxRadius * 0.25; // Minimum 25% of max radius
+
+        let fontSize = baseFontSize;
+        let textHeight, safeRadius;
+
+        // Iteratively reduce font size until text fits with clearance
+        for (let size = baseFontSize; size >= 7; size -= 0.5) {
+            const tempText = new PIXI.Text(textLabel, {
+                fontSize: size,
+                fontWeight: 'bold',
+                fontFamily: 'sans-serif'
+            });
+
+            textHeight = tempText.width; // Width becomes height when rotated
+            tempText.destroy();
+
+            const availableSpace = (containerHeight - textHeight) / 2;
+
+            // Check if text fits with minimum clearance
+            if (availableSpace >= minClearance) {
+                fontSize = size;
+                safeRadius = Math.min(maxRadius, Math.max(minRadius, availableSpace - minClearance));
+                break;
+            }
+        }
+
+        return { fontSize, safeRadius: safeRadius || minRadius };
+    }
+
+    // Adjust label Y position to avoid crossing container edges
+    getSafeLabelY(textLabel, centerY, containerTop, containerBottom, fontSize) {
+        const tempText = new PIXI.Text(textLabel, {
+            fontSize: fontSize,
+            fontWeight: 'bold',
+            fontFamily: 'sans-serif'
+        });
+        const textHeight = tempText.width; // Width becomes height when rotated
+        tempText.destroy();
+
+        const halfTextHeight = textHeight / 2;
+        const edgeBuffer = 10; // Buffer around edges
+
+        // Check if centered position works
+        let labelY = centerY;
+        const textTop = labelY - halfTextHeight;
+        const textBottom = labelY + halfTextHeight;
+
+        // Check collision with all other container edges
+        for (const edge of this.containerEdges) {
+            // Skip edges outside our container bounds
+            if (edge.y < containerTop || edge.y > containerBottom) continue;
+
+            // If edge intersects text, shift text UP first
+            if (edge.y > textTop - edgeBuffer && edge.y < textBottom + edgeBuffer) {
+                // Try shifting up first
+                const shiftedUpY = edge.y - halfTextHeight - edgeBuffer;
+                if (shiftedUpY - halfTextHeight >= containerTop) {
+                    labelY = shiftedUpY;
+                    break;
+                }
+                // Otherwise shift down
+                const shiftedDownY = edge.y + halfTextHeight + edgeBuffer;
+                if (shiftedDownY + halfTextHeight <= containerBottom) {
+                    labelY = shiftedDownY;
+                    break;
+                }
+            }
+        }
+
+        return labelY;
     }
 
     drawRoundedRect(graphics, x, y, width, height, radii) {
@@ -115,6 +191,9 @@ class DiagramRenderer {
             });
         });
 
+        // Store discipline data for later label drawing
+        this.disciplineData = [];
+
         // Draw LEFT side disciplines only (with rounded tab shape)
         Object.keys(this.data.disciplines).forEach(disciplineId => {
             const discipline = this.data.disciplines[disciplineId];
@@ -141,17 +220,18 @@ class DiagramRenderer {
 
             // Width is just label lanes, no content area
             const width = (order + 1) * labelWidth;
-            const radius = this.settings.cornerRadius;
+            const maxRadius = this.settings.cornerRadius;
+            const { fontSize, safeRadius } = this.getSafeTextAndRadius(discipline.label, height, maxRadius);
             const x = centerX - width;
 
             const graphics = new PIXI.Graphics();
             const { color, alpha } = this.hexToNumber(discipline.color);
 
             graphics.beginFill(color, alpha);
-            graphics.lineStyle(1.5, 0x333333, 0.2);
+            graphics.lineStyle(1.5, 0x333333);
 
             // Draw label area only - rounded on left edge, sharp on right (spine) edge
-            const radii = [radius, 0, 0, radius];
+            const radii = [safeRadius, 0, 0, safeRadius];
             this.drawRoundedRect(graphics, x, y, width, height, radii);
 
             graphics.endFill();
@@ -159,12 +239,35 @@ class DiagramRenderer {
 
             this.container.addChild(graphics);
 
-            // Draw discipline label (vertical text in its lane, counting from spine)
+            // Track edges for collision detection
+            this.containerEdges.push({ y: y, side: 'left' }); // Top edge
+            this.containerEdges.push({ y: y + height, side: 'left' }); // Bottom edge
+
+            // Store data for label drawing
+            this.disciplineData.push({
+                discipline,
+                y,
+                height,
+                order,
+                centerX,
+                labelWidth,
+                fontSize
+            });
+        });
+    }
+
+    drawDisciplineLabels() {
+        if (!this.disciplineData) return;
+
+        this.disciplineData.forEach(data => {
+            const { discipline, y, height, order, centerX, labelWidth, fontSize } = data;
+
             const labelX = centerX - ((order + 1) * labelWidth) + (labelWidth / 2);
-            const labelY = y + (height / 2);
+            const centerLabelY = y + (height / 2);
+            const labelY = this.getSafeLabelY(discipline.label, centerLabelY, y, y + height, fontSize);
 
             const label = new PIXI.Text(discipline.label, {
-                fontSize: 11,
+                fontSize: fontSize,
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
                 fill: 0x000000,
@@ -230,6 +333,9 @@ class DiagramRenderer {
             return this.getPhaseDepth(b) - this.getPhaseDepth(a);
         });
 
+        // Store phase data for later label drawing
+        this.phaseData = [];
+
         // Draw each phase
         phaseIds.forEach(phaseId => {
             const phase = this.data.phases[phaseId];
@@ -245,56 +351,74 @@ class DiagramRenderer {
             const centerX = this.settings.centerX;
             const contentWidth = this.settings.taskWidth;
             const labelWidth = 50;
-            const depth = this.getPhaseDepth(phaseId);
-            const inset = depth * 30; // Inset children 30px per level
-            const maxDescendantDepth = this.getMaxDescendantDepth(phaseId);
+            const order = phase.order || 0;
 
-            // Extend width to cover all descendant label lanes
-            const descendantLabelSpace = maxDescendantDepth * labelWidth;
-            const totalWidth = contentWidth + labelWidth - inset + descendantLabelSpace;
-            const radius = this.settings.cornerRadius;
-            const x = centerX + inset;
+            // Width based on order like disciplines
+            const totalLabelWidth = (order + 1) * labelWidth;
+            const totalWidth = contentWidth + totalLabelWidth;
+            const maxRadius = this.settings.cornerRadius;
+            const { fontSize, safeRadius } = this.getSafeTextAndRadius(phase.label, bounds.height, maxRadius);
+            const x = centerX; // All phases flush to spine
 
             const graphics = new PIXI.Graphics();
             const { color, alpha } = this.hexToNumber(phase.color);
 
             graphics.beginFill(color, alpha);
-            graphics.lineStyle(1.5, 0x333333, 0.2);
+            graphics.lineStyle(1.5, 0x333333);
 
-            // Content area (left) - rectangle
-            const actualContentWidth = contentWidth - inset;
-            graphics.drawRect(x, bounds.y, actualContentWidth, bounds.height);
+            // Content area (left) - rectangle, always full width
+            graphics.drawRect(x, bounds.y, contentWidth, bounds.height);
 
             // Label area (right) - rounded corners on outer edge
-            // Total label space includes this phase's label + all descendant labels
-            const totalLabelWidth = labelWidth + descendantLabelSpace;
-            graphics.moveTo(x + actualContentWidth, bounds.y);
-            graphics.lineTo(x + actualContentWidth + totalLabelWidth - radius, bounds.y);
+            graphics.moveTo(x + contentWidth, bounds.y);
+            graphics.lineTo(x + contentWidth + totalLabelWidth - safeRadius, bounds.y);
             graphics.quadraticCurveTo(
-                x + actualContentWidth + totalLabelWidth, bounds.y,
-                x + actualContentWidth + totalLabelWidth, bounds.y + radius
+                x + contentWidth + totalLabelWidth, bounds.y,
+                x + contentWidth + totalLabelWidth, bounds.y + safeRadius
             );
-            graphics.lineTo(x + actualContentWidth + totalLabelWidth, bounds.y + bounds.height - radius);
+            graphics.lineTo(x + contentWidth + totalLabelWidth, bounds.y + bounds.height - safeRadius);
             graphics.quadraticCurveTo(
-                x + actualContentWidth + totalLabelWidth, bounds.y + bounds.height,
-                x + actualContentWidth + totalLabelWidth - radius, bounds.y + bounds.height
+                x + contentWidth + totalLabelWidth, bounds.y + bounds.height,
+                x + contentWidth + totalLabelWidth - safeRadius, bounds.y + bounds.height
             );
-            graphics.lineTo(x + actualContentWidth, bounds.y + bounds.height);
-            graphics.lineTo(x + actualContentWidth, bounds.y);
+            graphics.lineTo(x + contentWidth, bounds.y + bounds.height);
+            graphics.lineTo(x + contentWidth, bounds.y);
 
             graphics.endFill();
             graphics.blendMode = PIXI.BLEND_MODES.MULTIPLY;
 
             this.container.addChild(graphics);
 
-            // Draw phase label (vertical text in label area)
-            // Position label in outermost lane of this container
-            const labelOffset = maxDescendantDepth * labelWidth;
-            const labelX = x + actualContentWidth + labelOffset + (labelWidth / 2);
-            const labelY = bounds.y + (bounds.height / 2);
+            // Track edges for collision detection
+            this.containerEdges.push({ y: bounds.y, side: 'right' }); // Top edge
+            this.containerEdges.push({ y: bounds.y + bounds.height, side: 'right' }); // Bottom edge
+
+            // Store data for label drawing
+            this.phaseData.push({
+                phase,
+                bounds,
+                x,
+                contentWidth,
+                order,
+                labelWidth,
+                fontSize
+            });
+        });
+    }
+
+    drawPhaseLabels() {
+        if (!this.phaseData) return;
+
+        this.phaseData.forEach(data => {
+            const { phase, bounds, x, contentWidth, order, labelWidth, fontSize } = data;
+
+            // Label position using order (same as disciplines)
+            const labelX = x + contentWidth + (order * labelWidth) + (labelWidth / 2);
+            const centerLabelY = bounds.y + (bounds.height / 2);
+            const labelY = this.getSafeLabelY(phase.label, centerLabelY, bounds.y, bounds.y + bounds.height, fontSize);
 
             const label = new PIXI.Text(phase.label, {
-                fontSize: 11,
+                fontSize: fontSize,
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
                 fill: 0x000000,
@@ -319,14 +443,14 @@ class DiagramRenderer {
 
             // Draw task box (simple rectangle, no rounded corners, no fill)
             const graphics = new PIXI.Graphics();
-            graphics.lineStyle(1, 0x000000, 0.25);
+            graphics.lineStyle(1, 0x000000);
             graphics.drawRect(x, y, taskWidth, taskHeight);
 
             this.container.addChild(graphics);
 
             // Draw text
             const textStyle = new PIXI.TextStyle({
-                fontSize: 9,
+                fontSize: 10,
                 fontFamily: 'sans-serif',
                 fill: 0x222222,
                 wordWrap: true,
@@ -374,10 +498,16 @@ class DiagramRenderer {
     }
 
     render() {
-        // Draw order: spine → left disciplines → phase containers → tasks
+        // Clear edges from previous render
+        this.containerEdges = [];
+
+        // Draw order: spine → containers (collect edges) → labels (avoid edges) → tasks
         this.drawSpine();
         this.drawLeftDisciplines();
         this.drawPhaseContainers();
+        // Now draw all labels with edge collision detection
+        this.drawDisciplineLabels();
+        this.drawPhaseLabels();
         this.drawTasks();
     }
 }
@@ -389,7 +519,7 @@ window.onload = async () => {
     const app = new PIXI.Application({
         width: data.settings.canvasWidth,
         height: 2000, // Temp height, will resize
-        backgroundColor: 0xffffff,
+        backgroundColor: 0xa6c8a9,
         antialias: true
     });
 

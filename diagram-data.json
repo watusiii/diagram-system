@@ -1,6 +1,6 @@
 {
   "settings": {
-    "stepHeight": 40,
+    "stepHeight": 28,
     "centerX": 400,
     "canvasWidth": 900,
     "topPadding": 60,
@@ -12,108 +12,214 @@
   "tasks": [
     {
       "label": "show client examples of previous work and clients",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "consider context of historical & contemporary designs",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "define output: printing press, pixel/cinema screen",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "initial sketches (perhaps from a logo/existing types)",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "define scope: languages covered, (super)family styles",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "agree timeline, license, price; sign a contract",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "setup metadata, version control, test documents",
-      "phases": ["planning"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "key glyphs, word space",
-      "phases": ["planning", "testing", "glyph-design"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "planning",
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "lowercase",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "uppercase",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "numerals",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design"
+      ]
     },
     {
       "label": "diacritics",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design", "marketing"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     },
     {
       "label": "small, swash caps",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design", "marketing"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     },
     {
       "label": "other scripts",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design", "marketing"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     },
     {
       "label": "symbols",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design", "marketing"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     },
     {
       "label": "layout features (OpenType)",
-      "phases": ["testing", "glyph-design"],
-      "disciplines": ["type-design", "marketing"]
+      "phases": [
+        "testing",
+        "glyph-design"
+      ],
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     },
     {
       "label": "kerning",
-      "phases": ["testing"],
-      "disciplines": ["type-design", "font-engineering", "marketing"]
+      "phases": [
+        "testing"
+      ],
+      "disciplines": [
+        "type-design",
+        "font-engineering",
+        "marketing"
+      ]
     },
     {
       "label": "hinting",
-      "phases": ["testing"],
-      "disciplines": ["type-design", "font-engineering", "marketing"]
+      "phases": [
+        "testing"
+      ],
+      "disciplines": [
+        "type-design",
+        "font-engineering",
+        "marketing"
+      ]
     },
     {
       "label": "binary font file production",
-      "phases": ["testing"],
-      "disciplines": ["type-design", "font-engineering", "marketing"]
+      "phases": [
+        "testing"
+      ],
+      "disciplines": [
+        "type-design",
+        "font-engineering",
+        "marketing"
+      ]
     },
     {
       "label": "testing for complatibility, completeness",
-      "phases": ["testing"],
-      "disciplines": ["type-design", "font-engineering", "marketing"]
+      "phases": [
+        "testing"
+      ],
+      "disciplines": [
+        "type-design",
+        "font-engineering",
+        "marketing"
+      ]
     },
     {
       "label": "specimen design, documentation, implementation, publication",
       "phases": [],
-      "disciplines": ["type-design", "marketing"]
+      "disciplines": [
+        "type-design",
+        "marketing"
+      ]
     }
   ],
   "disciplines": {
@@ -140,17 +246,20 @@
   "phases": {
     "planning": {
       "label": "PLANNING",
-      "color": "rgba(242, 217, 141, 0.45)"
+      "color": "rgba(242, 217, 141, 0.45)",
+      "order": 0
     },
     "testing": {
       "label": "TESTING",
-      "color": "rgba(170, 150, 218, 0.25)"
+      "color": "rgba(170, 150, 218, 0.25)",
+      "order": 2
     },
     "glyph-design": {
       "label": "Iterative GLYPH DESIGN and SPACING",
       "subLabel": "Sketching on paper, drawing on screen",
       "color": "rgba(180, 160, 210, 0.3)",
-      "parent": "testing"
+      "parent": "testing",
+      "order": 1
     }
   }
 }
