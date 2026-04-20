@@ -1,0 +1,156 @@
+{
+  "settings": {
+    "stepHeight": 40,
+    "centerX": 400,
+    "canvasWidth": 900,
+    "topPadding": 60,
+    "bottomPadding": 60,
+    "taskWidth": 220,
+    "cornerRadius": 50,
+    "extraTimeSteps": 2
+  },
+  "tasks": [
+    {
+      "label": "show client examples of previous work and clients",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "consider context of historical & contemporary designs",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "define output: printing press, pixel/cinema screen",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "initial sketches (perhaps from a logo/existing types)",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "define scope: languages covered, (super)family styles",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "agree timeline, license, price; sign a contract",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "setup metadata, version control, test documents",
+      "phases": ["planning"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "key glyphs, word space",
+      "phases": ["planning", "testing", "glyph-design"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "lowercase",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "uppercase",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "numerals",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design"]
+    },
+    {
+      "label": "diacritics",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design", "marketing"]
+    },
+    {
+      "label": "small, swash caps",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design", "marketing"]
+    },
+    {
+      "label": "other scripts",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design", "marketing"]
+    },
+    {
+      "label": "symbols",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design", "marketing"]
+    },
+    {
+      "label": "layout features (OpenType)",
+      "phases": ["testing", "glyph-design"],
+      "disciplines": ["type-design", "marketing"]
+    },
+    {
+      "label": "kerning",
+      "phases": ["testing"],
+      "disciplines": ["type-design", "font-engineering", "marketing"]
+    },
+    {
+      "label": "hinting",
+      "phases": ["testing"],
+      "disciplines": ["type-design", "font-engineering", "marketing"]
+    },
+    {
+      "label": "binary font file production",
+      "phases": ["testing"],
+      "disciplines": ["type-design", "font-engineering", "marketing"]
+    },
+    {
+      "label": "testing for complatibility, completeness",
+      "phases": ["testing"],
+      "disciplines": ["type-design", "font-engineering", "marketing"]
+    },
+    {
+      "label": "specimen design, documentation, implementation, publication",
+      "phases": [],
+      "disciplines": ["type-design", "marketing"]
+    }
+  ],
+  "disciplines": {
+    "type-design": {
+      "label": "TYPE DESIGN",
+      "side": "left",
+      "color": "rgba(235, 150, 150, 0.35)",
+      "order": 0
+    },
+    "font-engineering": {
+      "label": "FONT ENGINEERING",
+      "side": "left",
+      "color": "rgba(150, 200, 150, 0.4)",
+      "order": 1
+    },
+    "marketing": {
+      "label": "Marketing, Social networking, PR",
+      "side": "left",
+      "color": "rgba(240, 200, 130, 0.35)",
+      "order": 2,
+      "extendBeyondTasks": true
+    }
+  },
+  "phases": {
+    "planning": {
+      "label": "PLANNING",
+      "color": "rgba(242, 217, 141, 0.45)"
+    },
+    "testing": {
+      "label": "TESTING",
+      "color": "rgba(170, 150, 218, 0.25)"
+    },
+    "glyph-design": {
+      "label": "Iterative GLYPH DESIGN and SPACING",
+      "subLabel": "Sketching on paper, drawing on screen",
+      "color": "rgba(180, 160, 210, 0.3)",
+      "parent": "testing"
+    }
+  }
+}
