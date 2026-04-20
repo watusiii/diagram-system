@@ -6,6 +6,29 @@ class DiagramRenderer {
         this.container = new PIXI.Container();
         app.stage.addChild(this.container);
         this.containerEdges = []; // Track all container edges for collision detection
+
+        // Containers for dynamic elements (layer order matters)
+        this.disciplinesContainer = new PIXI.Container();
+        this.phasesContainer = new PIXI.Container();
+        this.labelsContainer = new PIXI.Container();
+
+        this.container.addChild(this.disciplinesContainer);
+        this.container.addChild(this.phasesContainer);
+        this.container.addChild(this.labelsContainer); // Labels on top
+
+        // Animation state
+        this.animationProgress = 0; // 0 to 1
+        this.animationDuration = 1500; // Total animation time in ms (lower = faster)
+        this.taskAnimDuration = 350; // Task grow time in ms (lower = faster)
+        this.startTime = null;
+        this.spineGraphics = null;
+        this.arrowGraphics = null;
+        this.timeLabel = null;
+        this.taskElements = []; // Store task graphics and text for animation
+        this.currentArrowY = 0; // Current Y position of arrow tip
+        this.taskTriggerOffset = 40; // Arrow must be this far past task Y before task starts
+        this.disciplineAnimProgress = {}; // Track animation progress per discipline
+        this.phaseAnimProgress = {}; // Track animation progress per phase
     }
 
     indexToY(index) {
@@ -177,30 +200,33 @@ class DiagramRenderer {
         return { y, height };
     }
 
-    drawLeftDisciplines() {
-        // Group tasks by discipline
-        const disciplineTaskMap = {};
-
+    // Build discipline task mapping (called once)
+    buildDisciplineTaskMap() {
+        this.disciplineTaskMap = {};
         this.data.tasks.forEach((task, index) => {
             const disciplines = task.disciplines || [];
             disciplines.forEach(disciplineId => {
-                if (!disciplineTaskMap[disciplineId]) {
-                    disciplineTaskMap[disciplineId] = [];
+                if (!this.disciplineTaskMap[disciplineId]) {
+                    this.disciplineTaskMap[disciplineId] = [];
                 }
-                disciplineTaskMap[disciplineId].push(index);
+                this.disciplineTaskMap[disciplineId].push(index);
             });
         });
+    }
 
-        // Store discipline data for later label drawing
+    // Draw disciplines based on visible tasks
+    drawDynamicDisciplines(visibleTaskIndices) {
+        this.disciplinesContainer.removeChildren();
         this.disciplineData = [];
+        this.containerEdges = this.containerEdges.filter(e => e.side !== 'left');
 
-        // Draw LEFT side disciplines only (with rounded tab shape)
         Object.keys(this.data.disciplines).forEach(disciplineId => {
             const discipline = this.data.disciplines[disciplineId];
             if (discipline.side !== 'left') return;
 
-            // Calculate bounds from assigned tasks
-            const taskIndices = disciplineTaskMap[disciplineId] || [];
+            // Get tasks for this discipline that are visible
+            const allTaskIndices = this.disciplineTaskMap[disciplineId] || [];
+            const taskIndices = allTaskIndices.filter(i => visibleTaskIndices.includes(i));
             if (taskIndices.length === 0) return;
 
             const bounds = this.calculateBounds(taskIndices);
@@ -209,20 +235,37 @@ class DiagramRenderer {
             let y = bounds.y;
             let height = bounds.height;
 
-            // Extend beyond tasks if specified
+            // Extend beyond if last visible task is the discipline's last task
             if (discipline.extendBeyondTasks && this.settings.extraTimeSteps) {
-                height += this.settings.extraTimeSteps * this.settings.stepHeight;
+                const maxTaskIndex = Math.max(...allTaskIndices);
+                const maxVisibleIndex = Math.max(...taskIndices);
+                if (maxVisibleIndex === maxTaskIndex) {
+                    height += this.settings.extraTimeSteps * this.settings.stepHeight;
+                }
             }
 
             const centerX = this.settings.centerX;
             const labelWidth = 50;
             const order = discipline.order || 0;
-
-            // Width is just label lanes, no content area
             const width = (order + 1) * labelWidth;
             const maxRadius = this.settings.cornerRadius;
             const { fontSize, safeRadius } = this.getSafeTextAndRadius(discipline.label, height, maxRadius);
-            const x = centerX - width;
+
+            // Use first visible task's progress only
+            const firstTaskIndex = Math.min(...taskIndices);
+            const firstTaskProgress = this.taskElements[firstTaskIndex]?.animationProgress || 0;
+
+            // Lock progress once fully animated
+            if (!this.disciplineAnimProgress[disciplineId]) {
+                this.disciplineAnimProgress[disciplineId] = firstTaskProgress;
+            } else if (firstTaskProgress > this.disciplineAnimProgress[disciplineId]) {
+                this.disciplineAnimProgress[disciplineId] = firstTaskProgress;
+            }
+
+            const easedProgress = 1 - Math.pow(1 - this.disciplineAnimProgress[disciplineId], 3);
+            const currentWidth = width * easedProgress;
+
+            const x = centerX - currentWidth;
 
             const graphics = new PIXI.Graphics();
             const { color, alpha } = this.hexToNumber(discipline.color);
@@ -230,20 +273,17 @@ class DiagramRenderer {
             graphics.beginFill(color, alpha);
             graphics.lineStyle(1.5, 0x333333);
 
-            // Draw label area only - rounded on left edge, sharp on right (spine) edge
-            const radii = [safeRadius, 0, 0, safeRadius];
-            this.drawRoundedRect(graphics, x, y, width, height, radii);
+            const radii = [safeRadius * easedProgress, 0, 0, safeRadius * easedProgress];
+            this.drawRoundedRect(graphics, x, y, currentWidth, height, radii);
 
             graphics.endFill();
             graphics.blendMode = PIXI.BLEND_MODES.MULTIPLY;
 
-            this.container.addChild(graphics);
+            this.disciplinesContainer.addChild(graphics);
 
-            // Track edges for collision detection
-            this.containerEdges.push({ y: y, side: 'left' }); // Top edge
-            this.containerEdges.push({ y: y + height, side: 'left' }); // Bottom edge
+            this.containerEdges.push({ y: y, side: 'left' });
+            this.containerEdges.push({ y: y + height, side: 'left' });
 
-            // Store data for label drawing
             this.disciplineData.push({
                 discipline,
                 y,
@@ -251,7 +291,9 @@ class DiagramRenderer {
                 order,
                 centerX,
                 labelWidth,
-                fontSize
+                currentWidth,
+                fontSize,
+                fullWidth: width
             });
         });
     }
@@ -259,8 +301,16 @@ class DiagramRenderer {
     drawDisciplineLabels() {
         if (!this.disciplineData) return;
 
+        // Clear old discipline labels
+        const oldLabels = this.labelsContainer.children.filter(c => c.userData?.type === 'discipline');
+        oldLabels.forEach(l => l.destroy());
+
         this.disciplineData.forEach(data => {
-            const { discipline, y, height, order, centerX, labelWidth, fontSize } = data;
+            const { discipline, y, height, order, centerX, labelWidth, currentWidth, fullWidth, fontSize } = data;
+
+            // Only show label if this discipline's lane is mostly visible
+            const progress = currentWidth / fullWidth;
+            if (progress < 0.3) return;
 
             const labelX = centerX - ((order + 1) * labelWidth) + (labelWidth / 2);
             const centerLabelY = y + (height / 2);
@@ -271,12 +321,13 @@ class DiagramRenderer {
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
                 fill: 0x000000,
-                alpha: 0.7
+                alpha: Math.min(progress * 1.5, 0.7)
             });
             label.anchor.set(0.5, 0.5);
             label.position.set(labelX, labelY);
             label.rotation = -Math.PI / 2;
-            this.container.addChild(label);
+            label.userData = { type: 'discipline' };
+            this.labelsContainer.addChild(label);
         });
     }
 
@@ -314,51 +365,65 @@ class DiagramRenderer {
         return maxDepth;
     }
 
-    drawPhaseContainers() {
-        // Group tasks by their direct phase
-        const phaseTaskMap = {};
-
+    // Build phase task mapping (called once)
+    buildPhaseTaskMap() {
+        this.phaseTaskMap = {};
         this.data.tasks.forEach((task, index) => {
             const phases = task.phases || [];
             phases.forEach(phaseId => {
-                if (!phaseTaskMap[phaseId]) {
-                    phaseTaskMap[phaseId] = [];
+                if (!this.phaseTaskMap[phaseId]) {
+                    this.phaseTaskMap[phaseId] = [];
                 }
-                phaseTaskMap[phaseId].push(index);
+                this.phaseTaskMap[phaseId].push(index);
             });
         });
+    }
 
-        // Sort phases by depth (children first, then parents - so parents draw on top)
+    // Draw phases based on visible tasks
+    drawDynamicPhases(visibleTaskIndices) {
+        this.phasesContainer.removeChildren();
+        this.phaseData = [];
+        this.containerEdges = this.containerEdges.filter(e => e.side !== 'right');
+
         const phaseIds = Object.keys(this.data.phases).sort((a, b) => {
             return this.getPhaseDepth(b) - this.getPhaseDepth(a);
         });
 
-        // Store phase data for later label drawing
-        this.phaseData = [];
-
-        // Draw each phase
         phaseIds.forEach(phaseId => {
             const phase = this.data.phases[phaseId];
             if (!phase) return;
 
-            // Get all indices including descendants
-            const allIndices = this.getPhaseTaskIndices(phaseId, phaseTaskMap);
-            if (allIndices.length === 0) return;
+            // Get all indices including descendants that are visible
+            const allIndices = this.getPhaseTaskIndices(phaseId, this.phaseTaskMap);
+            const indices = allIndices.filter(i => visibleTaskIndices.includes(i));
+            if (indices.length === 0) return;
 
-            const bounds = this.calculateBounds(allIndices);
+            const bounds = this.calculateBounds(indices);
             if (!bounds) return;
 
             const centerX = this.settings.centerX;
             const contentWidth = this.settings.taskWidth;
             const labelWidth = 50;
             const order = phase.order || 0;
-
-            // Width based on order like disciplines
             const totalLabelWidth = (order + 1) * labelWidth;
-            const totalWidth = contentWidth + totalLabelWidth;
             const maxRadius = this.settings.cornerRadius;
             const { fontSize, safeRadius } = this.getSafeTextAndRadius(phase.label, bounds.height, maxRadius);
-            const x = centerX; // All phases flush to spine
+            const x = centerX;
+
+            // Use first visible task's progress only
+            const firstTaskIndex = Math.min(...indices);
+            const firstTaskProgress = this.taskElements[firstTaskIndex]?.animationProgress || 0;
+
+            // Lock progress once fully animated
+            if (!this.phaseAnimProgress[phaseId]) {
+                this.phaseAnimProgress[phaseId] = firstTaskProgress;
+            } else if (firstTaskProgress > this.phaseAnimProgress[phaseId]) {
+                this.phaseAnimProgress[phaseId] = firstTaskProgress;
+            }
+
+            const easedProgress = 1 - Math.pow(1 - this.phaseAnimProgress[phaseId], 3);
+            const currentContentWidth = contentWidth * easedProgress;
+            const currentLabelWidth = totalLabelWidth * easedProgress;
 
             const graphics = new PIXI.Graphics();
             const { color, alpha } = this.hexToNumber(phase.color);
@@ -366,42 +431,43 @@ class DiagramRenderer {
             graphics.beginFill(color, alpha);
             graphics.lineStyle(1.5, 0x333333);
 
-            // Content area (left) - rectangle, always full width
-            graphics.drawRect(x, bounds.y, contentWidth, bounds.height);
+            // Draw content area (animated width)
+            graphics.drawRect(x, bounds.y, currentContentWidth, bounds.height);
 
-            // Label area (right) - rounded corners on outer edge
-            graphics.moveTo(x + contentWidth, bounds.y);
-            graphics.lineTo(x + contentWidth + totalLabelWidth - safeRadius, bounds.y);
-            graphics.quadraticCurveTo(
-                x + contentWidth + totalLabelWidth, bounds.y,
-                x + contentWidth + totalLabelWidth, bounds.y + safeRadius
-            );
-            graphics.lineTo(x + contentWidth + totalLabelWidth, bounds.y + bounds.height - safeRadius);
-            graphics.quadraticCurveTo(
-                x + contentWidth + totalLabelWidth, bounds.y + bounds.height,
-                x + contentWidth + totalLabelWidth - safeRadius, bounds.y + bounds.height
-            );
-            graphics.lineTo(x + contentWidth, bounds.y + bounds.height);
-            graphics.lineTo(x + contentWidth, bounds.y);
+            // Draw label area (animated width)
+            if (currentLabelWidth > 0) {
+                graphics.moveTo(x + currentContentWidth, bounds.y);
+                graphics.lineTo(x + currentContentWidth + currentLabelWidth - safeRadius * easedProgress, bounds.y);
+                graphics.quadraticCurveTo(
+                    x + currentContentWidth + currentLabelWidth, bounds.y,
+                    x + currentContentWidth + currentLabelWidth, bounds.y + safeRadius * easedProgress
+                );
+                graphics.lineTo(x + currentContentWidth + currentLabelWidth, bounds.y + bounds.height - safeRadius * easedProgress);
+                graphics.quadraticCurveTo(
+                    x + currentContentWidth + currentLabelWidth, bounds.y + bounds.height,
+                    x + currentContentWidth + currentLabelWidth - safeRadius * easedProgress, bounds.y + bounds.height
+                );
+                graphics.lineTo(x + currentContentWidth, bounds.y + bounds.height);
+                graphics.lineTo(x + currentContentWidth, bounds.y);
+            }
 
             graphics.endFill();
             graphics.blendMode = PIXI.BLEND_MODES.MULTIPLY;
 
-            this.container.addChild(graphics);
+            this.phasesContainer.addChild(graphics);
 
-            // Track edges for collision detection
-            this.containerEdges.push({ y: bounds.y, side: 'right' }); // Top edge
-            this.containerEdges.push({ y: bounds.y + bounds.height, side: 'right' }); // Bottom edge
+            this.containerEdges.push({ y: bounds.y, side: 'right' });
+            this.containerEdges.push({ y: bounds.y + bounds.height, side: 'right' });
 
-            // Store data for label drawing
             this.phaseData.push({
                 phase,
                 bounds,
                 x,
-                contentWidth,
+                contentWidth: currentContentWidth,
                 order,
                 labelWidth,
-                fontSize
+                fontSize,
+                fullContentWidth: contentWidth
             });
         });
     }
@@ -409,8 +475,16 @@ class DiagramRenderer {
     drawPhaseLabels() {
         if (!this.phaseData) return;
 
+        // Clear old phase labels
+        const oldLabels = this.labelsContainer.children.filter(c => c.userData?.type === 'phase');
+        oldLabels.forEach(l => l.destroy());
+
         this.phaseData.forEach(data => {
-            const { phase, bounds, x, contentWidth, order, labelWidth, fontSize } = data;
+            const { phase, bounds, x, contentWidth, order, labelWidth, fontSize, fullContentWidth } = data;
+
+            // Only show label if phase is mostly visible
+            const progress = contentWidth / fullContentWidth;
+            if (progress < 0.3) return;
 
             // Label position using order (same as disciplines)
             const labelX = x + contentWidth + (order * labelWidth) + (labelWidth / 2);
@@ -422,33 +496,38 @@ class DiagramRenderer {
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
                 fill: 0x000000,
-                alpha: 0.7
+                alpha: Math.min(progress * 1.5, 0.7)
             });
             label.anchor.set(0.5, 0.5);
             label.position.set(labelX, labelY);
             label.rotation = -Math.PI / 2;
-            this.container.addChild(label);
+            label.userData = { type: 'phase' };
+            this.labelsContainer.addChild(label);
         });
     }
 
 
     drawTasks() {
         const taskWidth = this.settings.taskWidth;
-        const taskHeight = this.settings.stepHeight; // Edge-to-edge, no gap
+        const taskHeight = this.settings.stepHeight;
         const centerX = this.settings.centerX;
+
+        this.taskElements = []; // Reset
 
         this.data.tasks.forEach((task, index) => {
             const y = this.indexToY(index);
-            const x = centerX; // All tasks flush to spine
+            const x = centerX;
 
-            // Draw task box (simple rectangle, no rounded corners, no fill)
+            // Create task container
+            const taskContainer = new PIXI.Container();
+            taskContainer.position.set(x, y);
+            this.container.addChild(taskContainer);
+
+            // Graphics for box
             const graphics = new PIXI.Graphics();
-            graphics.lineStyle(1, 0x000000);
-            graphics.drawRect(x, y, taskWidth, taskHeight);
+            taskContainer.addChild(graphics);
 
-            this.container.addChild(graphics);
-
-            // Draw text
+            // Text with typewriter
             const textStyle = new PIXI.TextStyle({
                 fontSize: 10,
                 fontFamily: 'sans-serif',
@@ -457,9 +536,32 @@ class DiagramRenderer {
                 wordWrapWidth: taskWidth - 12
             });
 
-            const text = new PIXI.Text(task.label, textStyle);
-            text.position.set(x + 6, y + (taskHeight - text.height) / 2);
-            this.container.addChild(text);
+            const text = new PIXI.Text('', textStyle);
+            text.position.set(6, taskHeight / 2);
+            text.anchor.set(0, 0.5);
+            taskContainer.addChild(text);
+
+            // Create mask for horizontal reveal
+            const mask = new PIXI.Graphics();
+            mask.beginFill(0xffffff);
+            mask.drawRect(0, 0, 0, taskHeight); // Start with 0 width
+            mask.endFill();
+            taskContainer.addChild(mask);
+            taskContainer.mask = mask;
+
+            // Store for animation
+            this.taskElements.push({
+                container: taskContainer,
+                graphics: graphics,
+                text: text,
+                mask: mask,
+                fullLabel: task.label,
+                charIndex: 0,
+                y: y,
+                animationProgress: 0,
+                taskWidth: taskWidth,
+                taskHeight: taskHeight
+            });
         });
     }
 
@@ -470,45 +572,158 @@ class DiagramRenderer {
         const arrowMargin = 20; // Space before arrow
         const endY = maxContentEndY + arrowMargin;
 
-        const graphics = new PIXI.Graphics();
-        graphics.lineStyle(2, 0x333333);
-        graphics.moveTo(centerX, startY);
-        graphics.lineTo(centerX, endY);
-        this.container.addChild(graphics);
+        // Store spine properties for animation
+        this.spineProps = { centerX, startY, endY };
 
-        // Arrow
-        const arrow = new PIXI.Graphics();
-        arrow.beginFill(0x333333);
-        arrow.moveTo(centerX, endY + 8);
-        arrow.lineTo(centerX - 5, endY);
-        arrow.lineTo(centerX + 5, endY);
-        arrow.closePath();
-        arrow.endFill();
-        this.container.addChild(arrow);
+        // Create spine graphics (will be drawn during animation)
+        this.spineGraphics = new PIXI.Graphics();
+        this.container.addChild(this.spineGraphics);
 
-        // "time" label
-        const timeLabel = new PIXI.Text('time', {
+        // Arrow graphics (will be drawn during animation)
+        this.arrowGraphics = new PIXI.Graphics();
+        this.container.addChild(this.arrowGraphics);
+
+        // "time" label (will follow arrow)
+        this.timeLabel = new PIXI.Text('time', {
             fontSize: 12,
             fontStyle: 'italic',
             fontFamily: 'serif',
             fill: 0x333333
         });
-        timeLabel.position.set(centerX + 15, endY);
-        this.container.addChild(timeLabel);
+        this.timeLabel.visible = false; // Hidden until arrow appears
+        this.container.addChild(this.timeLabel);
+    }
+
+    animate(delta) {
+        if (!this.startTime) {
+            this.startTime = Date.now();
+        }
+
+        const elapsed = Date.now() - this.startTime;
+        this.animationProgress = Math.min(elapsed / this.animationDuration, 1);
+
+        // Update spine and get current arrow Y
+        this.updateSpine(this.animationProgress);
+
+        // Update tasks based on arrow position
+        this.updateTasks();
+
+        // Get visible task indices (tasks that have started animating)
+        const visibleTaskIndices = [];
+        this.taskElements.forEach((taskEl, index) => {
+            if (taskEl.animationProgress > 0) {
+                visibleTaskIndices.push(index);
+            }
+        });
+
+        // Redraw phases and disciplines to span visible tasks
+        if (visibleTaskIndices.length > 0) {
+            this.drawDynamicDisciplines(visibleTaskIndices);
+            this.drawDynamicPhases(visibleTaskIndices);
+            // Redraw labels
+            this.drawDisciplineLabels();
+            this.drawPhaseLabels();
+        }
+
+        // Stop animation when complete
+        if (this.animationProgress >= 1) {
+            this.app.ticker.remove(this.animate, this);
+        }
+    }
+
+    updateSpine(progress) {
+        const { centerX, startY, endY } = this.spineProps;
+
+        // Ease in-out: fast start, slow end
+        const easedProgress = progress < 0.5
+            ? 2 * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+        this.currentArrowY = startY + (endY - startY) * easedProgress;
+
+        // Draw spine line
+        this.spineGraphics.clear();
+        this.spineGraphics.lineStyle(2, 0x333333);
+        this.spineGraphics.moveTo(centerX, startY);
+        this.spineGraphics.lineTo(centerX, this.currentArrowY);
+
+        // Draw arrow at current position
+        this.arrowGraphics.clear();
+        this.arrowGraphics.beginFill(0x333333);
+        this.arrowGraphics.moveTo(centerX, this.currentArrowY + 8);
+        this.arrowGraphics.lineTo(centerX - 5, this.currentArrowY);
+        this.arrowGraphics.lineTo(centerX + 5, this.currentArrowY);
+        this.arrowGraphics.closePath();
+        this.arrowGraphics.endFill();
+
+        // Show and position time label at arrow tip
+        this.timeLabel.visible = true;
+        this.timeLabel.position.set(centerX + 15, this.currentArrowY);
+    }
+
+    updateTasks() {
+        const taskAnimDuration = this.taskAnimDuration;
+
+        this.taskElements.forEach((taskEl, index) => {
+            const taskY = taskEl.y;
+
+            // Start animating when arrow is past task Y + offset
+            if (this.currentArrowY >= (taskY + this.taskTriggerOffset) && taskEl.animationProgress < 1) {
+                // Calculate how long this task has been animating
+                if (taskEl.startTime === undefined) {
+                    taskEl.startTime = Date.now();
+                }
+
+                const elapsed = Date.now() - taskEl.startTime;
+                taskEl.animationProgress = Math.min(elapsed / taskAnimDuration, 1);
+
+                const progress = taskEl.animationProgress;
+
+                // Grow mask width (ease out cubic for smoothness)
+                const easedProgress = 1 - Math.pow(1 - progress, 3);
+                const currentWidth = taskEl.taskWidth * easedProgress;
+
+                // Update mask
+                taskEl.mask.clear();
+                taskEl.mask.beginFill(0xffffff);
+                taskEl.mask.drawRect(0, 0, currentWidth, taskEl.taskHeight);
+                taskEl.mask.endFill();
+
+                // Draw box
+                taskEl.graphics.clear();
+                taskEl.graphics.lineStyle(1, 0x000000);
+                taskEl.graphics.drawRect(0, 0, currentWidth, taskEl.taskHeight);
+
+                // Typewriter effect (starts halfway through grow)
+                if (progress > 0.5) {
+                    const typeProgress = (progress - 0.5) / 0.5;
+                    const targetChars = Math.floor(taskEl.fullLabel.length * typeProgress);
+
+                    if (taskEl.charIndex < targetChars) {
+                        taskEl.charIndex = targetChars;
+                        taskEl.text.text = taskEl.fullLabel.substring(0, taskEl.charIndex);
+                    }
+                }
+            }
+        });
     }
 
     render() {
         // Clear edges from previous render
         this.containerEdges = [];
 
-        // Draw order: spine → containers (collect edges) → labels (avoid edges) → tasks
+        // Build mappings for dynamic drawing
+        this.buildDisciplineTaskMap();
+        this.buildPhaseTaskMap();
+
+        // Setup spine (will be animated)
         this.drawSpine();
-        this.drawLeftDisciplines();
-        this.drawPhaseContainers();
-        // Now draw all labels with edge collision detection
-        this.drawDisciplineLabels();
-        this.drawPhaseLabels();
+
+        // Setup tasks (will be animated)
         this.drawTasks();
+
+        // Start animation
+        this.app.ticker.add(this.animate, this);
     }
 }
 
