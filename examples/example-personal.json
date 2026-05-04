@@ -1,0 +1,177 @@
+{
+    "settings": {
+        "stepHeight": 34,
+        "centerX": 420,
+        "canvasWidth": 1000,
+        "topPadding": 60,
+        "bottomPadding": 80,
+        "taskWidth": 260,
+        "cornerRadius": 40,
+        "extraTimeSteps": 4
+    },
+    "tasks": [
+        {
+            "label": "Conceptual theme & systems theory research",
+            "phases": [
+                "ideation"
+            ],
+            "disciplines": [
+                "curation"
+            ]
+        },
+        {
+            "label": "Spatial mapping & site geometry analysis",
+            "phases": [
+                "ideation"
+            ],
+            "disciplines": [
+                "space-design"
+            ]
+        },
+        {
+            "label": "Audio-reactive logic & frequency testing",
+            "phases": [
+                "ideation",
+                "prototyping"
+            ],
+            "disciplines": [
+                "creative-coding",
+                "sound-eng"
+            ]
+        },
+        {
+            "label": "Prototyping sensor triggers & GLSL shaders",
+            "phases": [
+                "prototyping"
+            ],
+            "disciplines": [
+                "creative-coding"
+            ]
+        },
+        {
+            "label": "Composing generative soundscape layers",
+            "phases": [
+                "prototyping"
+            ],
+            "disciplines": [
+                "sound-eng"
+            ]
+        },
+        {
+            "label": "Hardware fabrication & structural assembly",
+            "phases": [
+                "prototyping",
+                "technical-build"
+            ],
+            "disciplines": [
+                "space-design"
+            ]
+        },
+        {
+            "label": "Integrating code base with physical sensors",
+            "phases": [
+                "technical-build"
+            ],
+            "disciplines": [
+                "creative-coding",
+                "space-design"
+            ]
+        },
+        {
+            "label": "Final acoustics calibration & audio mixing",
+            "phases": [
+                "technical-build"
+            ],
+            "disciplines": [
+                "sound-eng"
+            ]
+        },
+        {
+            "label": "Press kit creation & artist statement",
+            "phases": [
+                "technical-build",
+                "exhibition"
+            ],
+            "disciplines": [
+                "curation",
+                "comms"
+            ]
+        },
+        {
+            "label": "Public opening & live performance",
+            "phases": [
+                "exhibition"
+            ],
+            "disciplines": [
+                "curation",
+                "sound-eng"
+            ]
+        },
+        {
+            "label": "Social media documentation & archival",
+            "phases": [
+                "exhibition"
+            ],
+            "disciplines": [
+                "comms"
+            ]
+        }
+    ],
+    "disciplines": {
+        "curation": {
+            "label": "CURATION / STRATEGY",
+            "side": "left",
+            "color": "rgba(100, 150, 250, 0.35)",
+            "order": 0
+        },
+        "sound-eng": {
+            "label": "SOUND ENGINEERING",
+            "side": "left",
+            "color": "rgba(255, 180, 80, 0.35)",
+            "order": 1
+        },
+        "creative-coding": {
+            "label": "CREATIVE CODING",
+            "side": "left",
+            "color": "rgba(120, 240, 150, 0.35)",
+            "order": 2
+        },
+        "space-design": {
+            "label": "SPATIAL DESIGN",
+            "side": "left",
+            "color": "rgba(240, 130, 180, 0.35)",
+            "order": 3
+        },
+        "comms": {
+            "label": "COMMUNICATIONS",
+            "side": "left",
+            "color": "rgba(200, 200, 200, 0.4)",
+            "order": 4,
+            "extendBeyondTasks": true
+        }
+    },
+    "phases": {
+        "ideation": {
+            "label": "I. CONCEPTUAL FRAMEWORK",
+            "color": "rgba(180, 180, 180, 0.25)",
+            "order": 0
+        },
+        "prototyping": {
+            "label": "II. RAPID PROTOTYPING",
+            "color": "rgba(150, 200, 250, 0.25)",
+            "order": 1,
+            "parent": "ideation"
+        },
+        "technical-build": {
+            "label": "III. PHYSICAL ASSEMBLY",
+            "color": "rgba(150, 250, 180, 0.2)",
+            "order": 2
+        },
+        "exhibition": {
+            "label": "IV. PUBLIC ACTIVATION",
+            "color": "rgba(250, 150, 200, 0.2)",
+            "order": 3,
+            "parent": "technical-build"
+        }
+    }
+}

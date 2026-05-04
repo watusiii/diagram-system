@@ -1,0 +1,173 @@
+{
+    "settings": {
+        "stepHeight": 32,
+        "centerX": 400,
+        "canvasWidth": 900,
+        "topPadding": 60,
+        "bottomPadding": 80,
+        "taskWidth": 240,
+        "cornerRadius": 40,
+        "extraTimeSteps": 3
+    },
+    "tasks": [
+        {
+            "label": "Market research & user persona definition",
+            "phases": [
+                "planning"
+            ],
+            "disciplines": [
+                "product-mgmt"
+            ]
+        },
+        {
+            "label": "UX wireframing & user flow mapping",
+            "phases": [
+                "planning",
+                "design-phase"
+            ],
+            "disciplines": [
+                "design"
+            ]
+        },
+        {
+            "label": "High-fidelity UI design & prototyping",
+            "phases": [
+                "design-phase"
+            ],
+            "disciplines": [
+                "design"
+            ]
+        },
+        {
+            "label": "Backend architecture & API design",
+            "phases": [
+                "development"
+            ],
+            "disciplines": [
+                "engineering"
+            ]
+        },
+        {
+            "label": "Frontend development & component library",
+            "phases": [
+                "development"
+            ],
+            "disciplines": [
+                "engineering",
+                "design"
+            ]
+        },
+        {
+            "label": "Integration testing & bug triaging",
+            "phases": [
+                "development",
+                "testing-qa"
+            ],
+            "disciplines": [
+                "engineering",
+                "product-mgmt"
+            ]
+        },
+        {
+            "label": "Beta testing with early-access users",
+            "phases": [
+                "testing-qa"
+            ],
+            "disciplines": [
+                "product-mgmt",
+                "marketing"
+            ]
+        },
+        {
+            "label": "Final security audit & performance tuning",
+            "phases": [
+                "testing-qa"
+            ],
+            "disciplines": [
+                "engineering"
+            ]
+        },
+        {
+            "label": "Marketing campaign & social media blitz",
+            "phases": [
+                "launch-prep"
+            ],
+            "disciplines": [
+                "marketing"
+            ]
+        },
+        {
+            "label": "Production deployment & server scaling",
+            "phases": [
+                "launch-prep"
+            ],
+            "disciplines": [
+                "engineering"
+            ]
+        },
+        {
+            "label": "Post-launch support & data analytics",
+            "phases": [],
+            "disciplines": [
+                "product-mgmt",
+                "marketing"
+            ]
+        }
+    ],
+    "disciplines": {
+        "product-mgmt": {
+            "label": "PRODUCT MGMT",
+            "side": "left",
+            "color": "rgba(100, 180, 240, 0.35)",
+            "order": 0
+        },
+        "design": {
+            "label": "DESIGN",
+            "side": "left",
+            "color": "rgba(230, 120, 200, 0.35)",
+            "order": 1
+        },
+        "engineering": {
+            "label": "ENGINEERING",
+            "side": "left",
+            "color": "rgba(120, 220, 150, 0.35)",
+            "order": 2
+        },
+        "marketing": {
+            "label": "MARKETING & PR",
+            "side": "left",
+            "color": "rgba(250, 190, 80, 0.35)",
+            "order": 3,
+            "extendBeyondTasks": true
+        }
+    },
+    "phases": {
+        "planning": {
+            "label": "STRATEGY & PLANNING",
+            "color": "rgba(200, 200, 200, 0.3)",
+            "order": 0
+        },
+        "design-phase": {
+            "label": "VISUAL DESIGN",
+            "color": "rgba(180, 150, 240, 0.25)",
+            "order": 1,
+            "parent": "planning"
+        },
+        "development": {
+            "label": "BUILD & INTEGRATE",
+            "color": "rgba(150, 210, 210, 0.3)",
+            "order": 0
+        },
+        "testing-qa": {
+            "label": "QUALITY ASSURANCE",
+            "color": "rgba(255, 100, 100, 0.2)",
+            "order": 1,
+            "parent": "development"
+        },
+        "launch-prep": {
+            "label": "GO-LIVE READY",
+            "color": "rgba(100, 255, 100, 0.2)",
+            "order": 0
+        }
+    }
+}

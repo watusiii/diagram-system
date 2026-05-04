@@ -1,3 +1,68 @@
+// COLOR SCHEMES - Change activeScheme to switch colors
+const COLOR_SCHEMES = {
+    default: {
+        background: 0xa6c8a9,
+        spine: 0x333333,
+        timeLabel: 0x333333,
+        taskBorder: 0x000000,
+        taskText: 0x222222,
+        containerBorder: 0x333333,
+        labelText: 0x000000,
+        labelAlpha: 0.7,
+        blendMode: 'MULTIPLY',
+        intersectionColor: 0x000000,
+        intersectionAlpha: 0.15
+    },
+    dark: {
+        background: 0x2a2a2a,
+        spine: 0xffffff,
+        timeLabel: 0xffffff,
+        taskBorder: 0xffffff,
+        taskText: 0xeeeeee,
+        containerBorder: 0xffffff,
+        labelText: 0xffffff,
+        labelAlpha: 0.9,
+        blendMode: 'MULTIPLY',
+        intersectionColor: 0xffffff,
+        intersectionAlpha: 0.2
+    },
+    blueprint: {
+        background: 0x0d47a1,
+        spine: 0xffffff,
+        timeLabel: 0xffffff,
+        taskBorder: 0xffffff,
+        taskText: 0xffffff,
+        containerBorder: 0xffffff,
+        labelText: 0xffffff,
+        labelAlpha: 0.9,
+        blendMode: 'MULTIPLY',
+        intersectionColor: 0xffffff,
+        intersectionAlpha: 0.25
+    },
+    primary: {
+        background: 0xffffff,
+        spine: 0x000000,
+        timeLabel: 0x000000,
+        taskBorder: 0x000000,
+        taskText: 0x000000,
+        containerBorder: 0x000000,
+        labelText: 0x000000,
+        labelAlpha: 1.0,
+        blendMode: 'NORMAL',
+        intersectionColor: 0x000000,
+        intersectionAlpha: 0.1,
+        overrideContainers: true,
+        containerColors: [
+            { color: 0xff0000, alpha: 1.0 }, // Red
+            { color: 0x0000ff, alpha: 1.0 }, // Blue
+            { color: 0xffff00, alpha: 1.0 }, // Yellow
+            { color: 0x00ff00, alpha: 1.0 }  // Green
+        ]
+    }
+};
+
+const ACTIVE_SCHEME = 'blueprint'; // Change this to switch color schemes
+
 class DiagramRenderer {
     constructor(data, app) {
         this.data = data;
@@ -7,13 +72,21 @@ class DiagramRenderer {
         app.stage.addChild(this.container);
         this.containerEdges = []; // Track all container edges for collision detection
 
+        // Apply color scheme
+        this.colors = COLOR_SCHEMES[ACTIVE_SCHEME];
+        this.containerColorIndex = 0; // Track which primary color to use next
+
         // Containers for dynamic elements (layer order matters)
         this.disciplinesContainer = new PIXI.Container();
         this.phasesContainer = new PIXI.Container();
+        this.intersectionsContainer = new PIXI.Container();
+        this.bordersContainer = new PIXI.Container();
         this.labelsContainer = new PIXI.Container();
 
         this.container.addChild(this.disciplinesContainer);
         this.container.addChild(this.phasesContainer);
+        this.container.addChild(this.intersectionsContainer); // Overlaps on top
+        this.container.addChild(this.bordersContainer); // Borders after intersections
         this.container.addChild(this.labelsContainer); // Labels on top
 
         // Animation state
@@ -71,6 +144,16 @@ class DiagramRenderer {
             return { color: (r << 16) + (g << 8) + b, alpha: a };
         }
         return { color: 0xffffff, alpha: 1 };
+    }
+
+    // Get container color (override with primary colors if enabled)
+    getContainerColor(originalColor) {
+        if (this.colors.overrideContainers && this.colors.containerColors) {
+            const colorData = this.colors.containerColors[this.containerColorIndex % this.colors.containerColors.length];
+            this.containerColorIndex++;
+            return colorData;
+        }
+        return this.hexToNumber(originalColor);
     }
 
     // Calculate safe text size and corner radius
@@ -217,6 +300,7 @@ class DiagramRenderer {
     // Draw disciplines based on visible tasks
     drawDynamicDisciplines(visibleTaskIndices) {
         this.disciplinesContainer.removeChildren();
+        this.bordersContainer.removeChildren(); // Clear borders for redraw
         this.disciplineData = [];
         this.containerEdges = this.containerEdges.filter(e => e.side !== 'left');
 
@@ -268,18 +352,22 @@ class DiagramRenderer {
             const x = centerX - currentWidth;
 
             const graphics = new PIXI.Graphics();
-            const { color, alpha } = this.hexToNumber(discipline.color);
+            const { color, alpha } = this.getContainerColor(discipline.color);
 
+            // Draw fill with blend mode
             graphics.beginFill(color, alpha);
-            graphics.lineStyle(1.5, 0x333333);
-
             const radii = [safeRadius * easedProgress, 0, 0, safeRadius * easedProgress];
             this.drawRoundedRect(graphics, x, y, currentWidth, height, radii);
-
             graphics.endFill();
-            graphics.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+            graphics.blendMode = PIXI.BLEND_MODES[this.colors.blendMode];
 
             this.disciplinesContainer.addChild(graphics);
+
+            // Draw border separately (no blend mode for visibility)
+            const borderGraphics = new PIXI.Graphics();
+            borderGraphics.lineStyle(1.5, this.colors.containerBorder);
+            this.drawRoundedRect(borderGraphics, x, y, currentWidth, height, radii);
+            this.bordersContainer.addChild(borderGraphics);
 
             this.containerEdges.push({ y: y, side: 'left' });
             this.containerEdges.push({ y: y + height, side: 'left' });
@@ -293,7 +381,43 @@ class DiagramRenderer {
                 labelWidth,
                 currentWidth,
                 fontSize,
-                fullWidth: width
+                fullWidth: width,
+                bounds: { x, y, width: currentWidth, height }
+            });
+        });
+    }
+
+    // Draw intersections between disciplines and phases
+    drawIntersections() {
+        this.intersectionsContainer.removeChildren();
+
+        if (!this.disciplineData || !this.phaseData) return;
+
+        this.disciplineData.forEach(disc => {
+            this.phaseData.forEach(phase => {
+                const r1 = disc.bounds;
+                const r2 = phase.rectBounds;
+
+                // Check overlap
+                if (r1.x < r2.x + r2.width &&
+                    r1.x + r1.width > r2.x &&
+                    r1.y < r2.y + r2.height &&
+                    r1.y + r1.height > r2.y) {
+
+                    // Calculate intersection rect
+                    const ix = Math.max(r1.x, r2.x);
+                    const iy = Math.max(r1.y, r2.y);
+                    const iw = Math.min(r1.x + r1.width, r2.x + r2.width) - ix;
+                    const ih = Math.min(r1.y + r1.height, r2.y + r2.height) - iy;
+
+                    // Draw intersection
+                    const graphics = new PIXI.Graphics();
+                    graphics.beginFill(this.colors.intersectionColor, this.colors.intersectionAlpha);
+                    graphics.drawRect(ix, iy, iw, ih);
+                    graphics.endFill();
+
+                    this.intersectionsContainer.addChild(graphics);
+                }
             });
         });
     }
@@ -320,8 +444,8 @@ class DiagramRenderer {
                 fontSize: fontSize,
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
-                fill: 0x000000,
-                alpha: Math.min(progress * 1.5, 0.7)
+                fill: this.colors.labelText,
+                alpha: Math.min(progress * 1.5, this.colors.labelAlpha)
             });
             label.anchor.set(0.5, 0.5);
             label.position.set(labelX, labelY);
@@ -426,10 +550,10 @@ class DiagramRenderer {
             const currentLabelWidth = totalLabelWidth * easedProgress;
 
             const graphics = new PIXI.Graphics();
-            const { color, alpha } = this.hexToNumber(phase.color);
+            const { color, alpha } = this.getContainerColor(phase.color);
 
+            // Draw fill with blend mode
             graphics.beginFill(color, alpha);
-            graphics.lineStyle(1.5, 0x333333);
 
             // Draw content area (animated width)
             graphics.drawRect(x, bounds.y, currentContentWidth, bounds.height);
@@ -452,9 +576,35 @@ class DiagramRenderer {
             }
 
             graphics.endFill();
-            graphics.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+            graphics.blendMode = PIXI.BLEND_MODES[this.colors.blendMode];
 
             this.phasesContainer.addChild(graphics);
+
+            // Draw border separately (no blend mode for visibility)
+            const borderGraphics = new PIXI.Graphics();
+            borderGraphics.lineStyle(1.5, this.colors.containerBorder);
+
+            // Border for content area
+            borderGraphics.drawRect(x, bounds.y, currentContentWidth, bounds.height);
+
+            // Border for label area
+            if (currentLabelWidth > 0) {
+                borderGraphics.moveTo(x + currentContentWidth, bounds.y);
+                borderGraphics.lineTo(x + currentContentWidth + currentLabelWidth - safeRadius * easedProgress, bounds.y);
+                borderGraphics.quadraticCurveTo(
+                    x + currentContentWidth + currentLabelWidth, bounds.y,
+                    x + currentContentWidth + currentLabelWidth, bounds.y + safeRadius * easedProgress
+                );
+                borderGraphics.lineTo(x + currentContentWidth + currentLabelWidth, bounds.y + bounds.height - safeRadius * easedProgress);
+                borderGraphics.quadraticCurveTo(
+                    x + currentContentWidth + currentLabelWidth, bounds.y + bounds.height,
+                    x + currentContentWidth + currentLabelWidth - safeRadius * easedProgress, bounds.y + bounds.height
+                );
+                borderGraphics.lineTo(x + currentContentWidth, bounds.y + bounds.height);
+                borderGraphics.lineTo(x + currentContentWidth, bounds.y);
+            }
+
+            this.bordersContainer.addChild(borderGraphics);
 
             this.containerEdges.push({ y: bounds.y, side: 'right' });
             this.containerEdges.push({ y: bounds.y + bounds.height, side: 'right' });
@@ -467,7 +617,8 @@ class DiagramRenderer {
                 order,
                 labelWidth,
                 fontSize,
-                fullContentWidth: contentWidth
+                fullContentWidth: contentWidth,
+                rectBounds: { x, y: bounds.y, width: currentContentWidth + currentLabelWidth, height: bounds.height }
             });
         });
     }
@@ -495,8 +646,8 @@ class DiagramRenderer {
                 fontSize: fontSize,
                 fontWeight: 'bold',
                 fontFamily: 'sans-serif',
-                fill: 0x000000,
-                alpha: Math.min(progress * 1.5, 0.7)
+                fill: this.colors.labelText,
+                alpha: Math.min(progress * 1.5, this.colors.labelAlpha)
             });
             label.anchor.set(0.5, 0.5);
             label.position.set(labelX, labelY);
@@ -531,7 +682,7 @@ class DiagramRenderer {
             const textStyle = new PIXI.TextStyle({
                 fontSize: 10,
                 fontFamily: 'sans-serif',
-                fill: 0x222222,
+                fill: this.colors.taskText,
                 wordWrap: true,
                 wordWrapWidth: taskWidth - 12
             });
@@ -588,7 +739,7 @@ class DiagramRenderer {
             fontSize: 12,
             fontStyle: 'italic',
             fontFamily: 'serif',
-            fill: 0x333333
+            fill: this.colors.timeLabel
         });
         this.timeLabel.visible = false; // Hidden until arrow appears
         this.container.addChild(this.timeLabel);
@@ -618,8 +769,11 @@ class DiagramRenderer {
 
         // Redraw phases and disciplines to span visible tasks
         if (visibleTaskIndices.length > 0) {
+            // Reset color index for consistent colors each frame
+            this.containerColorIndex = 0;
             this.drawDynamicDisciplines(visibleTaskIndices);
             this.drawDynamicPhases(visibleTaskIndices);
+            this.drawIntersections();
             // Redraw labels
             this.drawDisciplineLabels();
             this.drawPhaseLabels();
@@ -643,13 +797,13 @@ class DiagramRenderer {
 
         // Draw spine line
         this.spineGraphics.clear();
-        this.spineGraphics.lineStyle(2, 0x333333);
+        this.spineGraphics.lineStyle(2, this.colors.spine);
         this.spineGraphics.moveTo(centerX, startY);
         this.spineGraphics.lineTo(centerX, this.currentArrowY);
 
         // Draw arrow at current position
         this.arrowGraphics.clear();
-        this.arrowGraphics.beginFill(0x333333);
+        this.arrowGraphics.beginFill(this.colors.spine);
         this.arrowGraphics.moveTo(centerX, this.currentArrowY + 8);
         this.arrowGraphics.lineTo(centerX - 5, this.currentArrowY);
         this.arrowGraphics.lineTo(centerX + 5, this.currentArrowY);
@@ -691,7 +845,7 @@ class DiagramRenderer {
 
                 // Draw box
                 taskEl.graphics.clear();
-                taskEl.graphics.lineStyle(1, 0x000000);
+                taskEl.graphics.lineStyle(1, this.colors.taskBorder);
                 taskEl.graphics.drawRect(0, 0, currentWidth, taskEl.taskHeight);
 
                 // Typewriter effect (starts halfway through grow)
@@ -728,13 +882,13 @@ class DiagramRenderer {
 }
 
 window.onload = async () => {
-    const response = await fetch('diagram-data.json');
+    const response = await fetch('examples/example-product.json');
     const data = await response.json();
 
     const app = new PIXI.Application({
         width: data.settings.canvasWidth,
         height: 2000, // Temp height, will resize
-        backgroundColor: 0xa6c8a9,
+        backgroundColor: COLOR_SCHEMES[ACTIVE_SCHEME].background,
         antialias: true
     });
 
