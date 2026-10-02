@@ -81,8 +81,7 @@ class DiagramRenderer {
         this.phasesContainer = new PIXI.Container();
         this.intersectionsContainer = new PIXI.Container();
         this.bordersContainer = new PIXI.Container();
-        this.labelsContainer = new PIXI.Container();
-
+        this.labelsContainer = new PIXI.Container();      
         this.container.addChild(this.disciplinesContainer);
         this.container.addChild(this.phasesContainer);
         this.container.addChild(this.intersectionsContainer); // Overlaps on top
