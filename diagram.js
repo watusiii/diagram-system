@@ -61,7 +61,7 @@ const COLOR_SCHEMES = {
     }
 };
 
-const ACTIVE_SCHEME = 'blueprint'; // Change this to switch color schemes
+const ACTIVE_SCHEME = 'default'; // Change this to switch color schemes
 
 class DiagramRenderer {
     constructor(data, app) {
