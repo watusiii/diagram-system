@@ -881,7 +881,7 @@ class DiagramRenderer {
 }
 
 window.onload = async () => {
-    const response = await fetch('diagram-data.json');
+    const response = await fetch('examples/example-personal.json');
     const data = await response.json();
 
     const app = new PIXI.Application({
